@@ -1,0 +1,8 @@
+name = "betting-api-worker"
+main = "src/index.ts"
+compatibility_date = "2024-03-18" # ယနေ့ ရက်စွဲ
+
+[[d1_databases]]
+binding = "DB"
+database_name = "betting-app-db"
+database_id = "8551650e-f6bc-43d1-89f5-fc46afedf824"
