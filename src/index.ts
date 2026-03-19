@@ -41,21 +41,28 @@ export default {
       }
 
       /* ========================================================
-         2. ADMIN API: Customer ၏ စာရင်းကို အတည်ပြု/ပယ်ချ လုပ်ခြင်း
+         2. ADMIN API: Customer ၏ စာရင်းကို အတည်ပြု/ပယ်ချ လုပ်ခြင်း (Reason အပါအဝင်)
          PATCH /api/admin/submissions/:id/status
       ======================================================== */
       const statusMatch = path.match(/^\/api\/admin\/submissions\/(?<id>[^/]+)\/status$/);
       if (statusMatch && method === 'PATCH') {
         const id = statusMatch.groups?.id;
-        const body: { status: string } = await request.json();
+        const body: { status: string; reason?: string } = await request.json();
 
         if (!['approved', 'rejected', 'pending'].includes(body.status)) {
           return new Response('Invalid status', { status: 400, headers: corsHeaders });
         }
 
-        await env.DB.prepare(
-          `UPDATE betting_submissions SET status = ? WHERE id = ?`
-        ).bind(body.status, id).run();
+        // Reject ဖြစ်ပြီး အကြောင်းပြချက်ပါလာပါက reason ကိုပါ သိမ်းမည်၊ သို့မဟုတ်ပါက reason ကို NULL လုပ်မည်
+        if (body.status === 'rejected' && body.reason) {
+          await env.DB.prepare(
+            `UPDATE betting_submissions SET status = ?, reason = ? WHERE id = ?`
+          ).bind(body.status, body.reason, id).run();
+        } else {
+          await env.DB.prepare(
+            `UPDATE betting_submissions SET status = ?, reason = NULL WHERE id = ?`
+          ).bind(body.status, id).run();
+        }
 
         return Response.json({ success: true, message: `Status updated to ${body.status}` }, { headers: corsHeaders });
       }
@@ -87,6 +94,7 @@ export default {
           return new Response('Missing required fields', { status: 400, headers: corsHeaders });
         }
 
+        // အသစ်ထည့်သည့်အခါ status ကို 'pending' ပေးပြီး reason ကို အလွတ်ထားမည်
         await env.DB.prepare(
           `INSERT INTO betting_submissions (id, user_id, customer_name, betting_type, betting_data, total_amount, session, bet_date, status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
@@ -95,7 +103,7 @@ export default {
           body.user_id,
           body.customer_name,
           body.betting_type,
-          JSON.stringify(body.betting_data), // Array ကို String ပြောင်းသိမ်းပါမယ်
+          JSON.stringify(body.betting_data), 
           body.total_amount,
           body.session,
           body.bet_date
